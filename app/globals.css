@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dark theme — Pontevedra brand (gold + dark navy) */
+  --background:         222 16% 8%;
+  --foreground:         0 0% 94%;
+
+  --card:               222 16% 11%;
+  --card-foreground:    0 0% 94%;
+
+  --border:             222 16% 18%;
+  --input:              222 16% 16%;
+
+  --muted:              222 16% 14%;
+  --muted-foreground:   215 16% 55%;
+
+  --primary:            38 92% 52%;
+  --primary-foreground: 0 0% 8%;
+
+  --destructive:        0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Sidebar */
+  --sidebar-bg:         222 16% 10%;
+  --sidebar-border:     222 16% 16%;
+
+  /* Chat bubbles */
+  --bubble-user-fg:     0 0% 98%;
+  --bubble-ai:          222 16% 16%;
+  --bubble-ai-fg:       0 0% 92%;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Thin scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 9999px;
+}
