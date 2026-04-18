@@ -265,18 +265,36 @@ export function ChatWindow({ conversation, onDeselect }: Props) {
           onSubmit={async (e) => {
             e.preventDefault()
             if (!text.trim() || sending) return
+            const msgText = text.trim()
             setSending(true)
+            setText('')
+            // Optimistic update
+            const tempMsg: Message = {
+              id: `temp-${Date.now()}`,
+              conversation_id: conversation.id,
+              role: 'assistant',
+              content: msgText,
+              created_at: new Date().toISOString(),
+            }
+            setMessages(prev => [...prev, tempMsg])
             try {
-              await fetch('/api/send-message', {
+              const res = await fetch('/api/send-message', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   conversationId: conversation.id,
                   phoneNumber: conversation.phone_number,
-                  text: text.trim(),
+                  text: msgText,
                 }),
               })
-              setText('')
+              if (!res.ok) {
+                // Remove optimistic message on failure
+                setMessages(prev => prev.filter(m => m.id !== tempMsg.id))
+                setText(msgText)
+              }
+            } catch {
+              setMessages(prev => prev.filter(m => m.id !== tempMsg.id))
+              setText(msgText)
             } finally {
               setSending(false)
             }
