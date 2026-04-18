@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 import fs from 'fs'
 import path from 'path'
 import {
@@ -13,7 +13,7 @@ const AGENT_PROMPT = fs.readFileSync(
   'utf-8'
 )
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!)
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const WA_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
 const WA_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!
@@ -88,22 +88,22 @@ export async function POST(request: NextRequest) {
     // ── 2. Retrieve last 5 messages for context ───────────────────────────────
     const history = await getLastMessages(conversationId, 5)
 
-    // ── 3. Call Gemini with history ───────────────────────────────────────────
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-lite',
-      systemInstruction: AGENT_PROMPT,
+    // ── 3. Call Claude with history ───────────────────────────────────────────
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: AGENT_PROMPT,
+      messages: [
+        ...history.map((m) => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+          content: m.content,
+        })),
+        { role: 'user', content: userText },
+      ],
     })
 
-    const chat = model.startChat({
-      history: history.map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })),
-    })
-
-    const result = await chat.sendMessage(userText)
     const assistantReply =
-      result.response.text().trim() ||
+      (response.content[0]?.type === 'text' ? response.content[0].text : '').trim() ||
       'Disculpa, en este momento tengo problemas técnicos. Por favor escríbenos en unos minutos.'
 
     console.log(`[webhook] Reply to ${phoneNumber}: "${assistantReply.slice(0, 80)}"`)
