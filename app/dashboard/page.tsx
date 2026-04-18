@@ -43,7 +43,7 @@ export default function DashboardPage() {
           selectedId={selectedConv?.id ?? null}
           onSelect={setSelectedConv}
         />
-        <ChatWindow conversation={selectedConv} />
+        <ChatWindow conversation={selectedConv} onDeselect={() => setSelectedConv(null)} />
       </div>
     </div>
   )

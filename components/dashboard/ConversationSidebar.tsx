@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createBrowserSupabaseClient, ConversationPreview } from '@/lib/supabase'
-import { MessageCircle, Phone, Clock, Search } from 'lucide-react'
+import { createBrowserSupabaseClient, ConversationPreview, LABELS } from '@/lib/supabase'
+import { MessageCircle, Phone, Clock, Search, Archive } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -14,6 +14,7 @@ interface Props {
 export function ConversationSidebar({ selectedId, onSelect }: Props) {
   const [conversations, setConversations] = useState<ConversationPreview[]>([])
   const [search, setSearch] = useState('')
+  const [tab, setTab] = useState<'active' | 'archived'>('active')
   const [loading, setLoading] = useState(true)
   const supabase = createBrowserSupabaseClient()
 
@@ -22,10 +23,8 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
 
     const channel = supabase
       .channel('conversations_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations' },
-        () => fetchConversations()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () =>
+        fetchConversations()
       )
       .subscribe()
 
@@ -40,18 +39,23 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
       .select('*')
       .order('updated_at', { ascending: false })
 
-    if (error) {
-      console.error('[sidebar] fetch error:', error)
-    } else {
-      setConversations((data as ConversationPreview[]) ?? [])
-    }
+    if (error) console.error('[sidebar] fetch error:', error)
+    else setConversations((data as ConversationPreview[]) ?? [])
     setLoading(false)
   }
 
-  const filtered = conversations.filter((c) =>
+  const tabFiltered = conversations.filter((c) =>
+    tab === 'archived' ? c.archived : !c.archived
+  )
+
+  const filtered = tabFiltered.filter((c) =>
     c.phone_number.includes(search) ||
+    (c.contact_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (c.last_message ?? '').toLowerCase().includes(search.toLowerCase())
   )
+
+  const activeCount   = conversations.filter(c => !c.archived).length
+  const archivedCount = conversations.filter(c => c.archived).length
 
   return (
     <aside
@@ -71,9 +75,34 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
             <MessageCircle className="w-3.5 h-3.5 text-background" />
           </div>
           <span className="text-sm font-semibold text-foreground">Conversaciones</span>
-          <span className="ml-auto text-xs text-muted-foreground font-mono">
-            {conversations.length}
-          </span>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-3 p-0.5 rounded-lg bg-muted/50">
+          <button
+            onClick={() => setTab('active')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              tab === 'active'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageCircle className="w-3 h-3" />
+            Activos
+            <span className="text-[10px] font-mono opacity-60">{activeCount}</span>
+          </button>
+          <button
+            onClick={() => setTab('archived')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              tab === 'archived'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Archive className="w-3 h-3" />
+            Archivados
+            <span className="text-[10px] font-mono opacity-60">{archivedCount}</span>
+          </button>
         </div>
 
         <div className="relative">
@@ -81,7 +110,7 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por teléfono..."
+            placeholder="Buscar contacto o mensaje..."
             className="w-full rounded-lg border border-border bg-muted/50 pl-8 pr-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
           />
         </div>
@@ -104,7 +133,7 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
           <div className="flex flex-col items-center justify-center h-40 gap-2 text-center px-4">
             <Phone className="w-6 h-6 text-muted-foreground/40" />
             <p className="text-xs text-muted-foreground">
-              {search ? 'Sin resultados' : 'Aún no hay conversaciones'}
+              {search ? 'Sin resultados' : tab === 'archived' ? 'No hay conversaciones archivadas' : 'Aún no hay conversaciones'}
             </p>
           </div>
         )}
@@ -122,33 +151,26 @@ export function ConversationSidebar({ selectedId, onSelect }: Props) {
   )
 }
 
-function ConversationItem({
-  conv,
-  isSelected,
-  onClick,
-}: {
+function ConversationItem({ conv, isSelected, onClick }: {
   conv: ConversationPreview
   isSelected: boolean
   onClick: () => void
 }) {
   const snippet = conv.last_message
-    ? conv.last_message.length > 52
-      ? conv.last_message.slice(0, 52) + '…'
-      : conv.last_message
+    ? conv.last_message.length > 52 ? conv.last_message.slice(0, 52) + '…' : conv.last_message
     : 'Sin mensajes'
 
-  const timeAgo = formatDistanceToNow(new Date(conv.updated_at), {
-    addSuffix: false,
-    locale: es,
-  })
+  const timeAgo = formatDistanceToNow(new Date(conv.updated_at), { addSuffix: false, locale: es })
+
+  const convLabels = (conv.labels ?? [])
+    .map(lid => LABELS.find(l => l.id === lid))
+    .filter(Boolean) as typeof LABELS[number][]
 
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-3 py-3 mx-0 transition-all group relative"
-      style={{
-        background: isSelected ? 'hsl(222 16% 14%)' : 'transparent',
-      }}
+      className="w-full text-left px-3 py-3 transition-all group relative"
+      style={{ background: isSelected ? 'hsl(222 16% 14%)' : 'transparent' }}
     >
       {isSelected && (
         <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full"
@@ -177,11 +199,18 @@ function ConversationItem({
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
-            {conv.last_message_role === 'assistant' && (
-              <span className="text-primary/60 mr-1">🤖</span>
-            )}
+            {conv.last_message_role === 'assistant' && <span className="text-primary/60 mr-1">🤖</span>}
             {snippet}
           </p>
+          {convLabels.length > 0 && (
+            <div className="flex gap-1 mt-1.5 flex-wrap">
+              {convLabels.map(label => (
+                <span key={label.id} className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${label.color}`}>
+                  {label.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </button>
