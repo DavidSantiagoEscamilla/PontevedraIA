@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createBrowserSupabaseClient, ConversationPreview, Message } from '@/lib/supabase'
-import { Bot, User, Phone, MoreVertical, Clock } from 'lucide-react'
+import { Bot, User, Phone, MoreVertical, Clock, Send } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -13,6 +13,8 @@ interface Props {
 export function ChatWindow({ conversation }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(false)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createBrowserSupabaseClient()
 
@@ -138,12 +140,53 @@ export function ChatWindow({ conversation }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      {/* Footer — read-only note */}
-      <div className="px-5 py-3 border-t border-border shrink-0"
+      {/* Footer — message input */}
+      <div className="px-4 py-3 border-t border-border shrink-0"
         style={{ background: 'hsl(var(--card))' }}>
-        <p className="text-center text-xs text-muted-foreground/50">
-          Vista de solo lectura — Las respuestas se envían automáticamente via IA
-        </p>
+        <form
+          className="flex items-end gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (!text.trim() || !conversation || sending) return
+            setSending(true)
+            try {
+              await fetch('/api/send-message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  conversationId: conversation.id,
+                  phoneNumber: conversation.phone_number,
+                  text: text.trim(),
+                }),
+              })
+              setText('')
+            } finally {
+              setSending(false)
+            }
+          }}
+        >
+          <textarea
+            rows={1}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                e.currentTarget.form?.requestSubmit()
+              }
+            }}
+            placeholder="Escribe un mensaje..."
+            className="flex-1 resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40"
+          />
+          <button
+            type="submit"
+            disabled={!text.trim() || sending}
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-colors disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, hsl(38 92% 52%), hsl(38 70% 38%))' }}
+          >
+            <Send className="w-4 h-4 text-background" />
+          </button>
+        </form>
       </div>
     </div>
   )
