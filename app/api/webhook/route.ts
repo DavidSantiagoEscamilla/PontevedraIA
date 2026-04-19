@@ -108,14 +108,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`[webhook] Reply to ${phoneNumber}: "${assistantReply.slice(0, 80)}"`)
 
-    // ── 4. Send reply via WhatsApp Cloud API (split into 2 messages) ─────────
-    const MAX_PART = 200
-    const parts = assistantReply.split(/\n\n+/).map(p => p.trim()).filter(Boolean)
-    const msg1 = parts[0].slice(0, MAX_PART)
+    // ── 4. Send reply as 2 short messages split at sentence boundary ──────────
+    const sentences = assistantReply.match(/[^.!?¿¡]*[.!?]+["']?/g)?.map(s => s.trim()).filter(Boolean) ?? [assistantReply]
+    const msg1 = sentences[0] ?? assistantReply
+    const msg2 = sentences.slice(1, 3).join(' ').trim()
     await sendWhatsAppMessage(phoneNumber, msg1)
-    if (parts.length > 1) {
+    if (msg2) {
       await new Promise(r => setTimeout(r, 1500))
-      const msg2 = parts.slice(1).join(' ').slice(0, MAX_PART)
       await sendWhatsAppMessage(phoneNumber, msg2)
     }
 
