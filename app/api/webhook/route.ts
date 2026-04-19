@@ -108,8 +108,13 @@ export async function POST(request: NextRequest) {
 
     console.log(`[webhook] Reply to ${phoneNumber}: "${assistantReply.slice(0, 80)}"`)
 
-    // ── 4. Send reply via WhatsApp Cloud API ──────────────────────────────────
-    await sendWhatsAppMessage(phoneNumber, assistantReply)
+    // ── 4. Send reply via WhatsApp Cloud API (split into 2 messages) ─────────
+    const parts = assistantReply.split(/\n\n+/).map(p => p.trim()).filter(Boolean)
+    await sendWhatsAppMessage(phoneNumber, parts[0])
+    if (parts.length > 1) {
+      await new Promise(r => setTimeout(r, 1500))
+      await sendWhatsAppMessage(phoneNumber, parts.slice(1).join('\n\n'))
+    }
 
     // ── 5. Persist both messages ──────────────────────────────────────────────
     await saveMessage(conversationId, 'user', userText)
